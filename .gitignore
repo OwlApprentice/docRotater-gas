@@ -1,0 +1,17 @@
+# Visual Studio 2015/2017 cache/options directory
+.vs/
+
+# backup files
+backup.source/
+source.pub/
+
+# shell scripts
+*.sh
+scriptID_*.txt
+
+# hide script IDs
+clasp.json
+.clasp.json
+appsscript.json
+
+# END of FILE #
