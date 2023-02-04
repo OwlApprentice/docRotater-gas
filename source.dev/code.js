@@ -10,19 +10,23 @@ const TRIGGER_AT_HOUR = 3;
 // 設定保存用のキー名
 const PKEY_SETTING = 'DAYS_OF_WEEK';
 
-function test()
-{
-	let bitdays = getBitDayOfWeek();
-	let result = bitdays.test(0);
-}
-
+// 競合制御用のキー
+const PKEY_LOCK = 'LOCK';
 
 class BitDayOfWeek
 {
+	static getInstance()
+	{
+		if(BitDayOfWeek._instance === undefined) {
+			BitDayOfWeek._instance = new BitDayOfWeek();
+		}
+		return BitDayOfWeek._instance;
+	}
+
 	constructor()
 	{
-		this.store = PropertiesService.getScriptProperties(); // just fore debugging...
-		// this.store = PropertiesService.getUserProperties(); // for release
+		this.store = PropertiesService.getScriptProperties(); // everyone shoud use the same prop storage.
+		// this.store = PropertiesService.getUserProperties();  so we do not use UserProperties Store.
 		let value = this.store.getProperty(PKEY_SETTING);
 		this.bitDayOfWeek = parseInt(value == undefined ? 0 : parseInt(value));
 	}
@@ -53,14 +57,6 @@ class BitDayOfWeek
 	}
 }
 
-function getBitDayOfWeek()
-{
-	if(getBitDayOfWeek.cache === undefined) {
-		getBitDayOfWeek.cache = new BitDayOfWeek();
-	}
-	return getBitDayOfWeek.cache;
-}
-
 function getUI()
 { // make as a dedicated function, in case for supporting other doc types ... like Spreadsheet or Slide
 	if(getUI.cache === undefined) {
@@ -84,7 +80,7 @@ function createMenu()
 		{func: onMenu_Help, label: 'Help (使い方)', },
 	];
 
-	let bitDays = getBitDayOfWeek();
+	let bitDays = BitDayOfWeek.getInstance();
 
 	let menu = getUI().createMenu('[docRotater/議事録保存]');
 	let i = 0;
@@ -116,7 +112,7 @@ function onMenu_Sataurday() {setupEverydayTrigger(6);}
 
 function onMenu_DeleteAll()
 {
-	let bitDays = getBitDayOfWeek();
+	let bitDays = BitDayOfWeek.getInstance();
 	bitDays.loadValue(0);
 	removeTrigger();
 	createMenu();
@@ -125,7 +121,7 @@ function onMenu_DeleteAll()
 
 function setupEverydayTrigger(dayOfWeek)
 {
-	let bitDays = getBitDayOfWeek();
+	let bitDays = BitDayOfWeek.getInstance();
 	bitDays.setBit(dayOfWeek);
 	setTriggerEveryNight();
 	createMenu();
@@ -172,7 +168,7 @@ function onMenu_Help()
 
 function onTigger_AtEveryNight()
 {
-	let bitDays = getBitDayOfWeek();
+	let bitDays = BitDayOfWeek.getInstance();
 	let date = Date.new();
 	if(bitDays.test(date)) {
 		rotateDocument(date);
@@ -226,6 +222,28 @@ function dialog(title, msg = undefined)
 	else result = ui.alert(title, ui.ButtonSet.OK);
 	return;
 }
+
+function replaceStringMacros( strSource, date, filename )
+{
+	let year = date.getFullYear();
+	let month = date.getMonth() + 1;
+	let dayOfMonth = date.getDate();
+	let result = strSource;
+	if(date) {
+		result = result
+			.replace('${yyyy}', (year + '').padStart(4, '0'))
+			.replace('${y}', year + '')
+			.replace('${mm}', (month + '').padStart(2, '0'))
+			.replace('${m}', month + '')
+			.replace('${dd}', (dayOfMonth + '').padStart(2, '0'))
+			.replace('${d}', dayOfMonth + '');
+	}
+	if(filename) {
+		result = result.replace('${filename}', filename);
+	} 	
+	return result;
+}
+
 
 
 // END of FILE //
