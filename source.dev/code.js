@@ -1,19 +1,19 @@
 // バックアップ先のフォルダ名。ドキュメントの存在するフォルダと同じ場所にフォルダが作成されます。${yyyy} ${mm} ${dd} ${filename} が指定可能
-const BACKUP_FOLDER = '過去の議事録.${yyyy}年'; 
+const BACKUP_FOLDER = '過去の議事録.${yyyy}年';
 
 // バックアップ先のフォルダ名。ドキュメントの存在するフォルダと同じ場所にフォルダが作成されます。${yyyy} ${mm} ${dd} ${filename} が指定可能
-const BACKUP_FILENAME = '${filename}.${yyyy}.${mm}'; 
+const BACKUP_FILENAME = '${filename}.${yyyy}.${mm}';
 
 // トリガー起動時間 (毎日 nn 時ごろに起動)
-const TRIGGER_AT_HOUR = 3;	
+const TRIGGER_AT_HOUR = 3;
 
 // 設定保存用のキー名
 const PKEY_SETTING = 'DAYS_OF_WEEK';
 
-function test ()
+function test()
 {
-  let bitdays = getBitDayOfWeek();
-  let result = bitdays.test( 0 );
+	let bitdays = getBitDayOfWeek();
+	let result = bitdays.test(0);
 }
 
 
@@ -21,10 +21,10 @@ class BitDayOfWeek
 {
 	constructor()
 	{
-    this.store = PropertiesService.getScriptProperties(); // just fore debugging...
-    // this.store = PropertiesService.getUserProperties(); // for release
-    let value = this.store.getProperty( PKEY_SETTING );
-		this.bitDayOfWeek = parseInt( value == undefined ? 0 : parseInt(value) );
+		this.store = PropertiesService.getScriptProperties(); // just fore debugging...
+		// this.store = PropertiesService.getUserProperties(); // for release
+		let value = this.store.getProperty(PKEY_SETTING);
+		this.bitDayOfWeek = parseInt(value == undefined ? 0 : parseInt(value));
 	}
 
 	test(date_or_dayOfWeek)
@@ -37,14 +37,14 @@ class BitDayOfWeek
 	{
 		if(date_or_dayOfWeek instanceof Date) date_or_dayOfWeek = date_or_dayOfWeek.getDay();
 		this.bitDayOfWeek |= (1 << date_or_dayOfWeek);
-    this.store.setProperty( PKEY_SETTING, '' + this.bitDayOfWeek );
+		this.store.setProperty(PKEY_SETTING, '' + this.bitDayOfWeek);
 	}
 
 	loadValue(bitValue)
 	{
 		this.bitDayOfWeek = bitValue == null ? 0 : bitValue;
-    if (this.bitDayOfWeek != 0) this.store.setProperty( PKEY_SETTING, '' + this.bitDayOfWeek );
-    else this.store.deleteProperty( PKEY_SETTING );
+		if(this.bitDayOfWeek != 0) this.store.setProperty(PKEY_SETTING, '' + this.bitDayOfWeek);
+		else this.store.deleteProperty(PKEY_SETTING);
 	}
 
 	bitValue()
@@ -55,10 +55,10 @@ class BitDayOfWeek
 
 function getBitDayOfWeek()
 {
-  if (getBitDayOfWeek.cache === undefined) {
-    getBitDayOfWeek.cache = new BitDayOfWeek();
-  }
-  return getBitDayOfWeek.cache;
+	if(getBitDayOfWeek.cache === undefined) {
+		getBitDayOfWeek.cache = new BitDayOfWeek();
+	}
+	return getBitDayOfWeek.cache;
 }
 
 function getUI()
@@ -79,23 +79,23 @@ function createMenu()
 		{func: onMenu_Thurseday, label: 'Thurseday(木)', },
 		{func: onMenu_Friday, label: 'Firday(金)', },
 		{func: onMenu_Sataurday, label: 'Sataurday(土)', },
-    null,
+		null,
 		{func: onMenu_DeleteAll, label: 'Delete all (設定削除)', },
 		{func: onMenu_Help, label: 'Help (使い方)', },
 	];
 
-  let bitDays = getBitDayOfWeek();
+	let bitDays = getBitDayOfWeek();
 
-  let menu = getUI().createMenu('[docRotater/議事録保存]');
-  let i = 0;
+	let menu = getUI().createMenu('[docRotater/議事録保存]');
+	let i = 0;
 	for(let v of menus) {
-    if (v == null) {
-      menu.addSeparator();
-    } else {
-      let check = (i<7 && bitDays.test(i))  ? '✔ ': '  ';
-      menu.addItem(check + v.label, v.func.name);
-    }
-    i++;
+		if(v == null) {
+			menu.addSeparator();
+		} else {
+			let check = (i < 7 && bitDays.test(i)) ? '✔ ' : '  ';
+			menu.addItem(check + v.label, v.func.name);
+		}
+		i++;
 	}
 	menu.addSeparator();
 	menu.addToUi();
@@ -116,10 +116,10 @@ function onMenu_Sataurday() {setupEverydayTrigger(6);}
 
 function onMenu_DeleteAll()
 {
-  let bitDays = getBitDayOfWeek();
-  bitDays.loadValue( 0 );
+	let bitDays = getBitDayOfWeek();
+	bitDays.loadValue(0);
 	removeTrigger();
-  createMenu();
+	createMenu();
 	showResult(null);
 }
 
@@ -128,7 +128,7 @@ function setupEverydayTrigger(dayOfWeek)
 	let bitDays = getBitDayOfWeek();
 	bitDays.setBit(dayOfWeek);
 	setTriggerEveryNight();
-  createMenu();
+	createMenu();
 	showResult(bitDays.bitValue(), dayOfWeek);
 }
 
@@ -164,9 +164,9 @@ function onMenu_Help()
 {
 	dialog([
 		'Select a day of week. The document would be backup at approx 3:00am at selected day of week.',
-    '',
+		'',
 		'ドキュメント保存する曜日を選択してください。指定した曜日の夜中03:00頃に自動保存が実行されます。'
-  ].join('\n'));
+	].join('\n'));
 	return;
 }
 
