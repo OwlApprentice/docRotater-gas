@@ -171,8 +171,16 @@ function onTigger_AtEveryNight()
 	let bitDays = BitDayOfWeek.getInstance();
 	let date = Date.new();
 	if(bitDays.test(date)) {
-		rotateDocument(date);
-	}
+    let lock = getDocumentLock();
+    if (lock === undefined) {
+      console.log( 'Cound not get lock. give up!' );
+    }
+    try {
+      rotateDocument(date);
+    } finally{
+      lock.releaseLock();
+    }
+  }
 	return;
 }
 
@@ -244,6 +252,23 @@ function replaceStringMacros( strSource, date, filename )
 	return result;
 }
 
+
+function getDocumentLock()
+{
+  let lock = LockService.getDocumentLock();
+  let success = false;
+  for(let i=0; i<4; i++) {
+    try{ success = lock.tryLock( 1000 * (i + 1) ); }
+    catch(e) { /* nothing todo */ }
+    if (success) break;
+  }
+  return success ? lock : undefined;
+}
+
+function rotateDocument(date)
+{
+  throw new Error( 'Not implemented yet.' );
+}
 
 
 // END of FILE //

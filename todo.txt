@@ -2,7 +2,6 @@ Todo
 	・ファイルコピー機能の実装
 	・ファイル名変更機能の実装
 	・ディレクトリ作成機能の実装
-	・競合排除、排他実行機能の実装 (簡易版?)
 	・トリガー起動の実装 > rotateDocument(date)
 
 
@@ -11,5 +10,6 @@ Todo
 	・メニュー実装
 	・設定保存機能実装 > ScriptProperties
 	・トリガー設定機能実装
+	・競合排除、排他実行機能の実装 > getLock() with LockService.getDocumentLock()
 
 [EOF]
