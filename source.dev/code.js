@@ -4,8 +4,8 @@ const BACKUP_FOLDER = '過去の議事録.${yyyy}年';
 // バックアップ先のフォルダ名。ドキュメントの存在するフォルダと同じ場所にフォルダが作成されます。${yyyy} ${mm} ${dd} ${filename} が指定可能
 const BACKUP_FILENAME = '${filename}.${yyyy}.${mm}';
 
-// トリガー起動時間 (毎日 nn 時ごろに起動)
-const TRIGGER_AT_HOUR = 3;
+// トリガー起動時間、配列で指定 (毎日 nn 時ごろに起動) ※起動失敗する場合があるので複数回設定する
+const TRIGGER_HOURS = [1, 3, 5];
 
 // 設定保存用のキー名
 const PKEY_SETTING = 'DAYS_OF_WEEK';
@@ -28,9 +28,8 @@ class BitDayOfWeek
 
 	constructor()
 	{
-		this.store = PropertiesService.getScriptProperties(); // everyone shoud use the same prop storage.
-		// this.store = PropertiesService.getUserProperties();  so we do not use UserProperties Store.
-		let value = this.store.getProperty(PKEY_SETTING);
+		let store = getPropertiesStore();
+		let value = store.getProperty(PKEY_SETTING);
 		this.bitDayOfWeek = parseInt(value == undefined ? 0 : parseInt(value));
 	}
 
@@ -44,20 +43,30 @@ class BitDayOfWeek
 	{
 		if(date_or_dayOfWeek instanceof Date) date_or_dayOfWeek = date_or_dayOfWeek.getDay();
 		this.bitDayOfWeek |= (1 << date_or_dayOfWeek);
-		this.store.setProperty(PKEY_SETTING, '' + this.bitDayOfWeek);
+		let store = getPropertiesStore();
+		store.setProperty(PKEY_SETTING, '' + this.bitDayOfWeek);
 	}
 
 	loadValue(bitValue)
 	{
 		this.bitDayOfWeek = bitValue == null ? 0 : bitValue;
-		if(this.bitDayOfWeek != 0) this.store.setProperty(PKEY_SETTING, '' + this.bitDayOfWeek);
-		else this.store.deleteProperty(PKEY_SETTING);
+		let store = getPropertiesStore();
+		if(this.bitDayOfWeek != 0) store.setProperty(PKEY_SETTING, '' + this.bitDayOfWeek);
+		else store.deleteProperty(PKEY_SETTING);
 	}
 
 	bitValue()
 	{
 		return this.bitDayOfWeek;
 	}
+}
+
+function getPropertiesStore()
+{
+	if(getPropertiesStore.cache === undefined) {
+		getPropertiesStore.cache = PropertiesService.getScriptProperties(); // everyone should use the same prop storage.
+	}
+	return getPropertiesStore.cache;
 }
 
 function getActiveFile()
@@ -171,59 +180,62 @@ function showResult(bitDayOfWeek, dayOfWeek = undefined)
 function onMenu_Help()
 {
 	dialog([
-		'Select a day of week. The document would be backup at approx 3:00am at selected day of week.',
+		'Select a day of week. The document would be backup at midnight of the selected day of week.',
 		'',
-		'ドキュメント保存する曜日を選択してください。指定した曜日の夜中03:00頃に自動保存が実行されます。'
+		'ドキュメント保存する曜日を選択してください。指定した曜日の夜中に自動保存が実行されます。'
 	].join('\n'));
 	return;
 }
 
-function onTigger_AtEveryNight()
+function onTrigger_AtEveryNight()
 {
-	let bitDays = BitDayOfWeek.getInstance();
-	let date = Date.new();
-	if(bitDays.test(date)) {
+	let dateNow = new Date();
+	while(true) {
 		let lock = getDocumentLock();
-		if(lock === undefined) {
-			console.log('Cound not get lock. give up!');
-		}
+		if(lock == undefined) break;
 		try {
-			rotateDocument(date);
+			let success = lock.tryLock(1000 * 10);
+			if(!success) break;
+			rotateDocument(dateNow);
 		} finally {
-			lock.releaseLock();
+			if(lock != undefined) lock.releaseLock();
+			lock = undefined;
 		}
+		return;
 	}
+	console.log('Cound not get lock. give up!');
 	return;
 }
 
-function setTriggerEveryNight(funcTrigger = onTigger_AtEveryNight)
+function setTriggerEveryNight(funcTrigger = onTrigger_AtEveryNight)
 {
 	removeTrigger(funcTrigger); // remove trigger in advence, to suppress multiple triggers
 
-	let trigger = undefined;
-	for(let i = MAX_ERROR_RETRY; i >= 0; i--) {
-		try {
-			trigger = ScriptApp.newTrigger(funcTrigger.name)
-				.timeBased()
-				.atHour(TRIGGER_AT_HOUR)
-				.everyDays(1)
-				.create();
-		} catch(e) {
-			console.log(e);
+	for(let hour of TRIGGER_HOURS) {
+		let trigger = undefined;
+		for(let i = MAX_ERROR_RETRY; i >= 0; i--) {
+			try {
+				trigger = ScriptApp.newTrigger(funcTrigger.name)
+					.timeBased()
+					.atHour(TRIGGER_AT_HOUR)
+					.everyDays(1)
+					.create();
+			} catch(e) {
+				console.log(e);
+			}
+			if(trigger !== undefined) break;
+			Utilities.sleep(1000 * (i + 1));
 		}
-		if(trigger !== undefined) break;
-		Utilities.Speep(1000 * (i + 1));
-	}
-
-	if((trigger == null)
-		|| (trigger.getEventType() != ScriptApp.EventType.CLOCK)
-		|| (trigger.getHandlerFunction() !== funcTrigger.name)) {
-		showError('Failed to set a trigger / 自動実行の設定に失敗しました');
+		if((trigger == null)
+			|| (trigger.getEventType() != ScriptApp.EventType.CLOCK)
+			|| (trigger.getHandlerFunction() !== funcTrigger.name)) {
+			showError('Failed to setup a trigger / 自動実行の設定に失敗しました');
+		}
 	}
 	return;
 }
 
-function removeTrigger(funcTrigger = onTigger_AtEveryNight)
+function removeTrigger(funcTrigger = onTrigger_AtEveryNight)
 {
 	let result = false;
 	for(let i = MAX_ERROR_RETRY; i >= 0; i--) {
@@ -236,12 +248,13 @@ function removeTrigger(funcTrigger = onTigger_AtEveryNight)
 				}
 			}
 			result = true;
+			break;
 		} catch(e) {
 			console.log(e);
 		}
-		Utilities.Speep(1000 * (i + 1));
+		Utilities.sleep(1000 * (i + 1));
 	}
-	if (!result) throw new Error('Failed to delete triggers / 自動実行の解除に失敗しました');
+	if(!result) throw new Error('Failed to delete triggers / 自動実行の解除に失敗しました');
 	return;
 }
 
@@ -293,16 +306,31 @@ function getDocumentLock()
 	return success ? lock : undefined;
 }
 
-function rotateDocument(dateNow)
-{
-	let today = new Date(dateNow.getFullYear(), dateNow.getMonth(), dateNow.getDate());
 
-	let store = PropertiesService.getScriptProperties(); // everyone shoud use the same prop storage.
+function hasUpdateAlready(dateNow)
+{
+	let store = getPropertiesStore();
 	let value = store.getProperty(PKEY_LASTBACKUP);
 	let lastUpdate = new Date(parseInt(value));
 	if(lastUpdate && lastUpdate.toString() !== 'Invalid Date') {
-		if(lastUpdate < today) return;
+		if(dateNow < lastUpdate) return true;
 	}
+	return false;
+}
+
+function markUpdateAlready(dateNow)
+{
+	let store = getPropertiesStore();
+	store.setProperty(PKEY_LASTBACKUP, '' + dateNow.getTime());
+	return;
+}
+
+function rotateDocument(dateNow)
+{
+	let today = new Date(dateNow.getFullYear(), dateNow.getMonth(), dateNow.getDate());
+	let bitDays = BitDayOfWeek.getInstance();
+	if(false == bitDays.test(today.getDay())) return;
+	if(hasUpdateAlready(today)) return;
 
 	let file = getActiveFile();
 	let filename = file.getName();
@@ -310,9 +338,9 @@ function rotateDocument(dateNow)
 	let folder = parents.hasNext() ? parents.next() : undefined;
 
 	let destFolder = createFolder(folder, replaceStringMacros(BACKUP_FOLDER, today, null));
-	copyFile(replaceStringMacros(BACKUP_FILENAME, today, filename), destFolder);
+	copyFile(file, destFolder, replaceStringMacros(BACKUP_FILENAME, today, filename));
 
-	store.setProperty(PKEY_LASTBACKUP, '' + dateNow.getTime());
+	markUpdateAlready(dateNow);
 	return;
 }
 
@@ -326,19 +354,25 @@ function createFolder(folder, name)
 		try {folderNew = folder.createFolder(name);}
 		catch(e) {console.log(e);}
 		if(folderNew !== undefined) break;
-		Utilities.Speep(1000 * (i + 1));
+		Utilities.sleep(1000 * (i + 1));
 	}
-	return folderNew; 
+	if(folderNew == undefined) {
+		throw new Error('Could not create a folder -- ' + name);
+	}
+	return folderNew;
 }
 
-function copyFile( fileSrc, folderDest, filename )
+function copyFile(fileSrc, folderDest, filename)
 {
 	let fileNew = undefined;
 	for(let i = MAX_ERROR_RETRY; i >= 0; i--) {
-		try {fileNew = fileSrc.makeCopy(filename, destFolder);}
+		try {fileNew = fileSrc.makeCopy(filename, folderDest);}
 		catch(e) {console.log(e);}
 		if(fileNew !== undefined) break;
-		Utilities.Speep(1000 * (i + 1));
+		Utilities.sleep(1000 * (i + 1));
+	}
+	if(fileNew == undefined) {
+		throw new Error('Could not copy a file to ' + filename);
 	}
 	return fileNew;
 }
