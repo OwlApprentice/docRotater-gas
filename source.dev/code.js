@@ -1,3 +1,8 @@
+/**
+ * docRotater for Google Apps Script
+ * ドキュメントを自動バックアップするためのスクリプト
+ */
+
 // バックアップ先のフォルダ名。ドキュメントの存在するフォルダと同じ場所にフォルダが作成されます。${yyyy} ${mm} ${dd} ${filename} が指定可能
 const BACKUP_FOLDER = '過去の議事録.${yyyy}年';
 
@@ -16,6 +21,7 @@ const MAX_ERROR_RETRY = 4;
 
 
 
+/** @classdesc 処理対象の曜日を記録する為のクラス **/
 class BitDayOfWeek
 {
 	static getInstance()
@@ -33,12 +39,19 @@ class BitDayOfWeek
 		this.bitDayOfWeek = parseInt(value == undefined ? 0 : parseInt(value));
 	}
 
+	/** 該当日かどうかのテスト 
+	 * @return {boolean} true=該当日
+	 * @param {Date|number} date_or_dayOfWeek DateかDate.getDay() [曜日]を指定
+	 */
 	test(date_or_dayOfWeek)
 	{
 		if(date_or_dayOfWeek instanceof Date) date_or_dayOfWeek = date_or_dayOfWeek.getDay();
 		return (this.bitDayOfWeek & (1 << date_or_dayOfWeek)) !== 0 ? true : false;
 	}
-
+	
+	/** 該当日(のビット)を設定する
+	 * @param {Date|number} date_or_dayOfWeek DateかDate.getDay() [曜日]を指定
+	 */
 	setBit(date_or_dayOfWeek)
 	{
 		if(date_or_dayOfWeek instanceof Date) date_or_dayOfWeek = date_or_dayOfWeek.getDay();
@@ -47,6 +60,9 @@ class BitDayOfWeek
 		store.setProperty(PKEY_SETTING, '' + this.bitDayOfWeek);
 	}
 
+	/** ビット列を設定する (日～土までを一括で指定する)
+	 * @param {number} bitValue 7ビット値、LSB→MSBで 日、月、火、水、木、金、土
+	 */
 	loadValue(bitValue)
 	{
 		this.bitDayOfWeek = bitValue == null ? 0 : bitValue;
@@ -55,20 +71,29 @@ class BitDayOfWeek
 		else store.deleteProperty(PKEY_SETTING);
 	}
 
+	/** ビット列を取得する
+	 * @return {number} 7ビット値、LSB→MSBで 日、月、火、水、木、金、土
+	 */
 	bitValue()
 	{
 		return this.bitDayOfWeek;
 	}
 }
 
+/** プロパティストアの取得
+ * @return {Properties} GoogleApps.Properties -- https://developers.google.com/apps-script/reference/properties/properties
+ */
 function getPropertiesStore()
-{
+{ // make as a dedicated function, in case of changing properties stores
 	if(getPropertiesStore.cache === undefined) {
 		getPropertiesStore.cache = PropertiesService.getScriptProperties(); // everyone should use the same prop storage.
 	}
 	return getPropertiesStore.cache;
 }
 
+/** ActiveDocumentに対応するFile Objectを取得する
+ * @return {File} GoogleApps.File -- https://developers.google.com/apps-script/reference/drive/file
+ */
 function getActiveFile()
 { // make as a dedicated function, in case for supporting other doc types ... like Spreadsheet or Slide
 	if(getActiveFile.cahce === undefined) {
@@ -78,6 +103,9 @@ function getActiveFile()
 	return getActiveFile.cahce;
 }
 
+/** ActiveDocument の Ui を取得
+ * @return {Ui GoogleApps.Ui -- https://developers.google.com/apps-script/reference/base/ui
+ */
 function getUI()
 { // make as a dedicated function, in case for supporting other doc types ... like Spreadsheet or Slide
 	if(getUI.cache === undefined) {
@@ -86,6 +114,9 @@ function getUI()
 	return getUI.cache;
 }
 
+
+/** ActiveDocument に表示するメニューの設定 (あるいは再設定)
+ */
 function createMenu()
 {
 	const menus = [
@@ -118,11 +149,15 @@ function createMenu()
 	menu.addToUi();
 }
 
+/** ハンドラ -- ファイル表示時
+ */
 function onOpen()
 {
 	createMenu();
 }
 
+/** ハンドラ -- メニュー選択時
+ */
 function onMenu_Sunday() {setupEverydayTrigger(0);}
 function onMenu_Monday() {setupEverydayTrigger(1);}
 function onMenu_Tuesday() {setupEverydayTrigger(2);}
@@ -131,6 +166,8 @@ function onMenu_Thurseday() {setupEverydayTrigger(4);}
 function onMenu_Friday() {setupEverydayTrigger(5);}
 function onMenu_Sataurday() {setupEverydayTrigger(6);}
 
+/** ハンドラ -- メニュー選択時 > 設定削除
+ */
 function onMenu_DeleteAll()
 {
 	let bitDays = BitDayOfWeek.getInstance();
@@ -140,6 +177,20 @@ function onMenu_DeleteAll()
 	showResult(null);
 }
 
+/** ハンドラ -- メニュー選択時 > ヘルプ
+ */
+function onMenu_Help()
+{
+	dialog([
+		'Select a day of week. The document would be backup at midnight of the selected day of week.',
+		'',
+		'ドキュメント保存する曜日を選択してください。指定した曜日の夜中に自動保存が実行されます。'
+	].join('\n'));
+	return;
+}
+
+/** ハンドラヘルパ -- 自動起動の設定
+ */
 function setupEverydayTrigger(dayOfWeek)
 {
 	let bitDays = BitDayOfWeek.getInstance();
@@ -149,6 +200,8 @@ function setupEverydayTrigger(dayOfWeek)
 	showResult(bitDays.bitValue(), dayOfWeek);
 }
 
+/** ハンドラヘルパ -- 自動起動の設定結果をダイアログ通知
+ */
 function showResult(bitDayOfWeek, dayOfWeek = undefined)
 {
 	if(bitDayOfWeek == null || bitDayOfWeek === 0) {
@@ -177,16 +230,8 @@ function showResult(bitDayOfWeek, dayOfWeek = undefined)
 	return;
 }
 
-function onMenu_Help()
-{
-	dialog([
-		'Select a day of week. The document would be backup at midnight of the selected day of week.',
-		'',
-		'ドキュメント保存する曜日を選択してください。指定した曜日の夜中に自動保存が実行されます。'
-	].join('\n'));
-	return;
-}
-
+/** ハンドラ -- 時限トリガーによる起動
+ */
 function onTrigger_AtEveryNight()
 {
 	let dateNow = new Date();
@@ -207,6 +252,9 @@ function onTrigger_AtEveryNight()
 	return;
 }
 
+/** 時限トリガーの設定
+ * @param {Function?} funcTrigger 自動起動設定される関数 (名前付き関数であるコト)
+ */
 function setTriggerEveryNight(funcTrigger = onTrigger_AtEveryNight)
 {
 	removeTrigger(funcTrigger); // remove trigger in advence, to suppress multiple triggers
@@ -229,12 +277,15 @@ function setTriggerEveryNight(funcTrigger = onTrigger_AtEveryNight)
 		if((trigger == null)
 			|| (trigger.getEventType() != ScriptApp.EventType.CLOCK)
 			|| (trigger.getHandlerFunction() !== funcTrigger.name)) {
-			showError('Failed to setup a trigger / 自動実行の設定に失敗しました');
+			throw new Error('Failed to setup a trigger / 自動実行の設定に失敗しました');
 		}
 	}
 	return;
 }
 
+/** 時限トリガーの解除
+ * @param {Function?} funcTrigger 自動起動設定される関数 (名前付き関数であるコト)
+ */
 function removeTrigger(funcTrigger = onTrigger_AtEveryNight)
 {
 	let result = false;
@@ -258,12 +309,10 @@ function removeTrigger(funcTrigger = onTrigger_AtEveryNight)
 	return;
 }
 
-function showError(msg)
-{
-	dialog(msg);
-	return;
-}
-
+/** ダイアログ表示
+ * @param {string} title タイトル文字列 ※msg省略時はtitleがメッセージ本文扱いになる
+ * @param {string?} msg メッセージ分
+ */
 function dialog(title, msg = undefined)
 {
 	var ui = getUI();
@@ -272,6 +321,12 @@ function dialog(title, msg = undefined)
 	return;
 }
 
+/** 文字列中のマクロ展開
+ * @return {string} 結果文字列
+ * @param {string} strSource マクロ展開対象となる文字列
+ * @param {Date} date 日付→マクロ置換される ${yyyy}${mm}${m} ${dd} ${d}
+ * @param {string} filename ファイル名→マクロ置換される ${filename}
+*/
 function replaceStringMacros(strSource, date, filename)
 {
 	let year = date.getFullYear();
@@ -294,6 +349,9 @@ function replaceStringMacros(strSource, date, filename)
 }
 
 
+/** 排他制御 (ドキュメントロックを使用)
+ * @return {Lock} https://developers.google.com/apps-script/reference/lock/lock-service#getDocumentLock()
+ */
 function getDocumentLock()
 {
 	let lock = LockService.getDocumentLock();
@@ -307,6 +365,10 @@ function getDocumentLock()
 }
 
 
+/** 指定日の作業が実行済みかどうか検査
+ * @return {boolean} true=実行済
+ * @param {Date} 検査対象日
+ */
 function hasUpdateAlready(dateNow)
 {
 	let store = getPropertiesStore();
@@ -318,6 +380,9 @@ function hasUpdateAlready(dateNow)
 	return false;
 }
 
+/** 作業実行済みマークを付与
+ * @param {Date} 実行日時
+ */
 function markUpdateAlready(dateNow)
 {
 	let store = getPropertiesStore();
@@ -325,6 +390,9 @@ function markUpdateAlready(dateNow)
 	return;
 }
 
+/** ドキュメントのバックアップ処理
+ * @param {Date} 実行日時
+ */
 function rotateDocument(dateNow)
 {
 	let today = new Date(dateNow.getFullYear(), dateNow.getMonth(), dateNow.getDate());
@@ -344,6 +412,10 @@ function rotateDocument(dateNow)
 	return;
 }
 
+/** フォルダ作成 ※同名フォルダがある場合は作成せず、既存フォルダを再利用する
+ * @param {Folder} folder 親フォルダ
+ * @param {string} name 作成するフォルダの名前
+ */
 function createFolder(folder, name)
 {
 	let founds = folder.getFoldersByName(name);
@@ -362,8 +434,17 @@ function createFolder(folder, name)
 	return folderNew;
 }
 
+/** ファイルコピー ※同名ファイルが存在する場合は 何もしない
+ * @return{File} コピー先のファイル (あるいは既存の同名ファイル)
+ * @param {File} fileSrc コピー元ファイル
+ * @param {Folder} folderDest コピー先フォルダ
+ * @param {string} name 作成するファイルの名前
+ */
 function copyFile(fileSrc, folderDest, filename)
 {
+	let founds = folderDest.getFilesByName(filename);
+	if(founds.hasNext()) return founds.next();
+
 	let fileNew = undefined;
 	for(let i = MAX_ERROR_RETRY; i >= 0; i--) {
 		try {fileNew = fileSrc.makeCopy(filename, folderDest);}
