@@ -2,7 +2,7 @@
 ## Document rotate/backup tool for Google Apps Script.
 
 ### Limitations:
-- can handle only 'Documet' type file.
+- can handle only 'Document' type file.
 - Not acceptable Spreadsheet, Slide etc.
 
 ### How to use:
