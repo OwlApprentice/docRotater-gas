@@ -194,8 +194,8 @@ function onMenu_Help()
 function setupEverydayTrigger(dayOfWeek)
 {
 	let bitDays = BitDayOfWeek.getInstance();
-	bitDays.setBit(dayOfWeek);
 	setTriggerEveryNight();
+	bitDays.setBit(dayOfWeek);
 	createMenu();
 	showResult(bitDays.bitValue(), dayOfWeek);
 }
@@ -265,7 +265,7 @@ function setTriggerEveryNight(funcTrigger = onTrigger_AtEveryNight)
 			try {
 				trigger = ScriptApp.newTrigger(funcTrigger.name)
 					.timeBased()
-					.atHour(TRIGGER_AT_HOUR)
+					.atHour(hour)
 					.everyDays(1)
 					.create();
 			} catch(e) {
