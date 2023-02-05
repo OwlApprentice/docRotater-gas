@@ -6,7 +6,8 @@
 // バックアップ先のフォルダ名。ドキュメントの存在するフォルダと同じ場所にフォルダが作成されます。${yyyy} ${mm} ${dd} ${filename} が指定可能
 const BACKUP_FOLDER = '過去の議事録.${yyyy}年';
 
-// バックアップ先のフォルダ名。ドキュメントの存在するフォルダと同じ場所にフォルダが作成されます。${yyyy} ${mm} ${dd} ${filename} が指定可能
+// バックアップ後のファイル名。ドキュメントの存在するフォルダと同じ場所にフォルダが作成されます。${yyyy} ${mm} ${dd} ${filename} が指定可能
+// ファイル名自体に日付文字列が含まれる場合、この指定は無視されます(ファイル名に含まれる日付文字列が更新されます)
 const BACKUP_FILENAME = '${filename}.${yyyy}.${mm}';
 
 // トリガー起動時間、配列で指定 (毎日 nn 時ごろに起動) ※起動失敗する場合があるので複数回設定する
@@ -48,7 +49,7 @@ class BitDayOfWeek
 		if(date_or_dayOfWeek instanceof Date) date_or_dayOfWeek = date_or_dayOfWeek.getDay();
 		return (this.bitDayOfWeek & (1 << date_or_dayOfWeek)) !== 0 ? true : false;
 	}
-	
+
 	/** 該当日(のビット)を設定する
 	 * @param {Date|number} date_or_dayOfWeek DateかDate.getDay() [曜日]を指定
 	 */
@@ -348,6 +349,25 @@ function replaceStringMacros(strSource, date, filename)
 	return result;
 }
 
+/** ファイル名に含まれる日付文字列を更新
+ * @return {string} filename変換結果
+ * @param {string} filename 
+ * @param {Date} date 
+*/
+function replaceDateInFilename(filename, date)
+{
+	const regexDate = /([0-9][0-9][0-9][0-9])([年\/\.\-])([0-9]?[0-9])([月\/\.\-])([0-9]?[0-9])([日]?)/;
+	let match = filename.match(regexDate);
+	if(match) {
+		let [all, year, sep1, month, sep2, dayOfMonth, sep3] = match;
+		year = (date.getFullYear() + '').padStart(year.length, '0');
+		month = (date.getMonth() + 1 + '').padStart(month.length, '0');
+		dayOfMonth = (date.getDate() + '').padStart(dayOfMonth.length, '0');
+		filename = filename.replace(all, year + sep1 + month + sep2 + dayOfMonth + sep3);
+	}
+	return filename;
+}
+
 
 /** 排他制御 (ドキュメントロックを使用)
  * @return {Lock} https://developers.google.com/apps-script/reference/lock/lock-service#getDocumentLock()
@@ -406,7 +426,14 @@ function rotateDocument(dateNow)
 	let folder = parents.hasNext() ? parents.next() : undefined;
 
 	let destFolder = createFolder(folder, replaceStringMacros(BACKUP_FOLDER, today, null));
-	copyFile(file, destFolder, replaceStringMacros(BACKUP_FILENAME, today, filename));
+	let filenameNew = replaceDateInFilename(filename, dateNow);
+	if(filenameNew === filename) {
+		filenameNew = replaceStringMacros(BACKUP_FILENAME, today, filename);
+		copyFile(file, destFolder, filenameNew);
+	} else {
+		copyFile(file, destFolder, filename);
+		file.setName(filenameNew);
+	}
 
 	markUpdateAlready(dateNow);
 	return;
