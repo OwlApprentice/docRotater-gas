@@ -9,9 +9,12 @@ const TRIGGER_AT_HOUR = 3;
 
 // 設定保存用のキー名
 const PKEY_SETTING = 'DAYS_OF_WEEK';
+const PKEY_LASTBACKUP = 'LAST_BACKUP';
 
-// 競合制御用のキー
-const PKEY_LOCK = 'LOCK';
+// エラーリトライ回数
+const MAX_ERROR_RETRY = 4;
+
+
 
 class BitDayOfWeek
 {
@@ -55,6 +58,15 @@ class BitDayOfWeek
 	{
 		return this.bitDayOfWeek;
 	}
+}
+
+function getActiveFile()
+{ // make as a dedicated function, in case for supporting other doc types ... like Spreadsheet or Slide
+	if(getActiveFile.cahce === undefined) {
+		let id = DocumentApp.getActiveDocument().getId();
+		getActiveFile.cahce = DriveApp.getFileById(id);
+	}
+	return getActiveFile.cahce;
 }
 
 function getUI()
@@ -171,27 +183,37 @@ function onTigger_AtEveryNight()
 	let bitDays = BitDayOfWeek.getInstance();
 	let date = Date.new();
 	if(bitDays.test(date)) {
-    let lock = getDocumentLock();
-    if (lock === undefined) {
-      console.log( 'Cound not get lock. give up!' );
-    }
-    try {
-      rotateDocument(date);
-    } finally{
-      lock.releaseLock();
-    }
-  }
+		let lock = getDocumentLock();
+		if(lock === undefined) {
+			console.log('Cound not get lock. give up!');
+		}
+		try {
+			rotateDocument(date);
+		} finally {
+			lock.releaseLock();
+		}
+	}
 	return;
 }
 
 function setTriggerEveryNight(funcTrigger = onTigger_AtEveryNight)
 {
 	removeTrigger(funcTrigger); // remove trigger in advence, to suppress multiple triggers
-	let trigger = ScriptApp.newTrigger(funcTrigger.name)
-		.timeBased()
-		.atHour(TRIGGER_AT_HOUR)
-		.everyDays(1)
-		.create();
+
+	let trigger = undefined;
+	for(let i = MAX_ERROR_RETRY; i >= 0; i--) {
+		try {
+			trigger = ScriptApp.newTrigger(funcTrigger.name)
+				.timeBased()
+				.atHour(TRIGGER_AT_HOUR)
+				.everyDays(1)
+				.create();
+		} catch(e) {
+			console.log(e);
+		}
+		if(trigger !== undefined) break;
+		Utilities.Speep(1000 * (i + 1));
+	}
 
 	if((trigger == null)
 		|| (trigger.getEventType() != ScriptApp.EventType.CLOCK)
@@ -203,17 +225,23 @@ function setTriggerEveryNight(funcTrigger = onTigger_AtEveryNight)
 
 function removeTrigger(funcTrigger = onTigger_AtEveryNight)
 {
-	try {
-		let triggers = ScriptApp.getProjectTriggers();
-		for(var i = 0; i < triggers.length; i++) {
-			var func = triggers[i].getHandlerFunction(); // ここで得られるのは String 型
-			if(func === funcTrigger.name) {
-				ScriptApp.deleteTrigger(triggers[i]);
+	let result = false;
+	for(let i = MAX_ERROR_RETRY; i >= 0; i--) {
+		try {
+			let triggers = ScriptApp.getProjectTriggers();
+			for(let r = 0; r < triggers.length; r++) {
+				var func = triggers[r].getHandlerFunction(); // ここで得られるのは String 型
+				if(func === funcTrigger.name) {
+					ScriptApp.deleteTrigger(triggers[r]);
+				}
 			}
+			result = true;
+		} catch(e) {
+			console.log(e);
 		}
-	} catch(e) {
-		throw new Error('Failed to delete triggers / 自動実行の解除に失敗しました');
+		Utilities.Speep(1000 * (i + 1));
 	}
+	if (!result) throw new Error('Failed to delete triggers / 自動実行の解除に失敗しました');
 	return;
 }
 
@@ -231,7 +259,7 @@ function dialog(title, msg = undefined)
 	return;
 }
 
-function replaceStringMacros( strSource, date, filename )
+function replaceStringMacros(strSource, date, filename)
 {
 	let year = date.getFullYear();
 	let month = date.getMonth() + 1;
@@ -248,27 +276,71 @@ function replaceStringMacros( strSource, date, filename )
 	}
 	if(filename) {
 		result = result.replace('${filename}', filename);
-	} 	
+	}
 	return result;
 }
 
 
 function getDocumentLock()
 {
-  let lock = LockService.getDocumentLock();
-  let success = false;
-  for(let i=0; i<4; i++) {
-    try{ success = lock.tryLock( 1000 * (i + 1) ); }
-    catch(e) { /* nothing todo */ }
-    if (success) break;
-  }
-  return success ? lock : undefined;
+	let lock = LockService.getDocumentLock();
+	let success = false;
+	for(let i = 0; i < 4; i++) {
+		try {success = lock.tryLock(1000 * (i + 1));}
+		catch(e) { /* nothing todo */}
+		if(success) break;
+	}
+	return success ? lock : undefined;
 }
 
-function rotateDocument(date)
+function rotateDocument(dateNow)
 {
-  throw new Error( 'Not implemented yet.' );
+	let today = new Date(dateNow.getFullYear(), dateNow.getMonth(), dateNow.getDate());
+
+	let store = PropertiesService.getScriptProperties(); // everyone shoud use the same prop storage.
+	let value = store.getProperty(PKEY_LASTBACKUP);
+	let lastUpdate = new Date(parseInt(value));
+	if(lastUpdate && lastUpdate.toString() !== 'Invalid Date') {
+		if(lastUpdate < today) return;
+	}
+
+	let file = getActiveFile();
+	let filename = file.getName();
+	let parents = file.getParents();
+	let folder = parents.hasNext() ? parents.next() : undefined;
+
+	let destFolder = createFolder(folder, replaceStringMacros(BACKUP_FOLDER, today, null));
+	copyFile(replaceStringMacros(BACKUP_FILENAME, today, filename), destFolder);
+
+	store.setProperty(PKEY_LASTBACKUP, '' + dateNow.getTime());
+	return;
 }
 
+function createFolder(folder, name)
+{
+	let founds = folder.getFoldersByName(name);
+	if(founds.hasNext()) return founds.next();
+
+	let folderNew = undefined;
+	for(let i = MAX_ERROR_RETRY; i >= 0; i--) {
+		try {folderNew = folder.createFolder(name);}
+		catch(e) {console.log(e);}
+		if(folderNew !== undefined) break;
+		Utilities.Speep(1000 * (i + 1));
+	}
+	return folderNew; 
+}
+
+function copyFile( fileSrc, folderDest, filename )
+{
+	let fileNew = undefined;
+	for(let i = MAX_ERROR_RETRY; i >= 0; i--) {
+		try {fileNew = fileSrc.makeCopy(filename, destFolder);}
+		catch(e) {console.log(e);}
+		if(fileNew !== undefined) break;
+		Utilities.Speep(1000 * (i + 1));
+	}
+	return fileNew;
+}
 
 // END of FILE //
