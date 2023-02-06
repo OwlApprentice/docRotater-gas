@@ -3,6 +3,9 @@
  * ドキュメントを自動バックアップするためのスクリプト
  */
 
+// ドキュメントファイルのオーナーのみがスクリプトを使用可能にするフラグ 
+const ONLY_OWNER_CAN_RUN = true; // true = オーナーのみ使用可能、 false=誰でも使用可能
+
 // バックアップ先のフォルダ名。ドキュメントの存在するフォルダと同じ場所にフォルダが作成されます。${yyyy} ${mm} ${dd} ${filename} が指定可能
 const BACKUP_FOLDER = '過去の議事録.${yyyy}年';
 
@@ -115,6 +118,23 @@ function getUI()
 	return getUI.cache;
 }
 
+function checkOwnerAccess()
+{
+	if(ONLY_OWNER_CAN_RUN !== true) return;
+
+	try {
+		let owner = getActiveFile().getOwner().getEmail();
+		let user = Session.getActiveUser().getEmail();
+		if(owner && user && owner === user) return;
+	} catch(e) {
+		console.log(e);
+	}
+
+	throw new Error([
+		'Only the file owner can use the script.',
+		'スクリプトを使用できるのはドキュメントのオーナーだけです'
+	].join('\n'));
+}
 
 /** ActiveDocument に表示するメニューの設定 (あるいは再設定)
  */
@@ -154,6 +174,7 @@ function createMenu()
  */
 function onOpen()
 {
+	// checkOwnerAccess(); <- can not check ownership here (onOpen callback handler).
 	createMenu();
 }
 
@@ -171,6 +192,8 @@ function onMenu_Sataurday() {setupEverydayTrigger(6);}
  */
 function onMenu_DeleteAll()
 {
+	checkOwnerAccess();
+
 	let bitDays = BitDayOfWeek.getInstance();
 	bitDays.loadValue(0);
 	removeTrigger();
@@ -194,6 +217,8 @@ function onMenu_Help()
  */
 function setupEverydayTrigger(dayOfWeek)
 {
+	checkOwnerAccess();
+
 	let bitDays = BitDayOfWeek.getInstance();
 	setTriggerEveryNight();
 	bitDays.setBit(dayOfWeek);
