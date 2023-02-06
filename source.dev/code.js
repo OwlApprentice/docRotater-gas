@@ -8,7 +8,7 @@ const BACKUP_FOLDER = '過去の議事録.${yyyy}年';
 
 // バックアップ後のファイル名。ドキュメントの存在するフォルダと同じ場所にフォルダが作成されます。${yyyy} ${mm} ${dd} ${filename} が指定可能
 // ファイル名自体に日付文字列が含まれる場合、この指定は無視されます(ファイル名に含まれる日付文字列が更新されます)
-const BACKUP_FILENAME = '${filename}.${yyyy}.${mm}';
+const BACKUP_FILENAME = '${filename}.${yyyy}.${mm}.${dd}';
 
 // トリガー起動時間、配列で指定 (毎日 nn 時ごろに起動) ※起動失敗する場合があるので複数回設定する
 const TRIGGER_HOURS = [1, 3, 5];
@@ -350,7 +350,7 @@ function replaceStringMacros(strSource, date, filename)
 }
 
 /** ファイル名に含まれる日付文字列を更新
- * @return {string} filename変換結果
+ * @return {string|undefined} filename変換結果 (変換不要の場合は undefined を返す)
  * @param {string} filename 
  * @param {Date} date 
 */
@@ -358,13 +358,14 @@ function replaceDateInFilename(filename, date)
 {
 	const regexDate = /([0-9][0-9][0-9][0-9])([年\/\.\-])([0-9]?[0-9])([月\/\.\-])([0-9]?[0-9])([日]?)/;
 	let match = filename.match(regexDate);
-	if(match) {
-		let [all, year, sep1, month, sep2, dayOfMonth, sep3] = match;
-		year = (date.getFullYear() + '').padStart(year.length, '0');
-		month = (date.getMonth() + 1 + '').padStart(month.length, '0');
-		dayOfMonth = (date.getDate() + '').padStart(dayOfMonth.length, '0');
-		filename = filename.replace(all, year + sep1 + month + sep2 + dayOfMonth + sep3);
-	}
+	if(!match) return undefined;
+
+	let [all, year, sep1, month, sep2, dayOfMonth, sep3] = match;
+	year = (date.getFullYear() + '').padStart(year.length, '0');
+	month = (date.getMonth() + 1 + '').padStart(month.length, '0');
+	dayOfMonth = (date.getDate() + '').padStart(dayOfMonth.length, '0');
+	filename = filename.replace(all, year + sep1 + month + sep2 + dayOfMonth + sep3);
+
 	return filename;
 }
 
@@ -427,12 +428,15 @@ function rotateDocument(dateNow)
 
 	let destFolder = createFolder(folder, replaceStringMacros(BACKUP_FOLDER, today, null));
 	let filenameNew = replaceDateInFilename(filename, dateNow);
-	if(filenameNew === filename) {
+	if(filenameNew == undefined) {
 		filenameNew = replaceStringMacros(BACKUP_FILENAME, today, filename);
 		copyFile(file, destFolder, filenameNew);
 	} else {
 		copyFile(file, destFolder, filename);
-		file.setName(filenameNew);
+		if(file.getName() !== filenameNew) {
+			file.setName(filenameNew);
+			console.log('Rename file to ' + filenameNew);
+		}
 	}
 
 	markUpdateAlready(dateNow);
@@ -458,6 +462,7 @@ function createFolder(folder, name)
 	if(folderNew == undefined) {
 		throw new Error('Could not create a folder -- ' + name);
 	}
+	console.log('Create folder ' + name);
 	return folderNew;
 }
 
@@ -482,6 +487,7 @@ function copyFile(fileSrc, folderDest, filename)
 	if(fileNew == undefined) {
 		throw new Error('Could not copy a file to ' + filename);
 	}
+	console.log('Backup file to ' + filename);
 	return fileNew;
 }
 
