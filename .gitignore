@@ -7,9 +7,10 @@ source.pub/
 
 # shell scripts
 *.sh
-scriptID_*.txt
+lastdeploy.txt
 
 # hide script IDs
+scriptID_*.txt
 clasp.json
 .clasp.json
 appsscript.json
