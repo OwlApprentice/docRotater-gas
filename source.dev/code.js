@@ -433,10 +433,7 @@ function rotateDocument(dateNow)
 		copyFile(file, destFolder, filenameNew);
 	} else {
 		copyFile(file, destFolder, filename);
-		if(file.getName() !== filenameNew) {
-			file.setName(filenameNew);
-			console.log('Rename file to ' + filenameNew);
-		}
+		renameFile(file, filenameNew);
 	}
 
 	markUpdateAlready(dateNow);
@@ -489,6 +486,19 @@ function copyFile(fileSrc, folderDest, filename)
 	}
 	console.log('Backup file to ' + filename);
 	return fileNew;
+}
+
+/** ファイル名変更
+ * @param {File} file 対象ファイル
+ * @param {string} filenameNew 新しいファイル名
+ */
+function renameFile(file, filenameNew)
+{
+	if(file.getName() !== filenameNew) {
+		file.setName(filenameNew);
+		console.log('Rename file to ' + filenameNew);
+	}
+	return;
 }
 
 // END of FILE //
