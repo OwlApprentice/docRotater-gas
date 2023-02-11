@@ -64,6 +64,17 @@ class BitDayOfWeek
 		store.setProperty(PKEY_SETTING, '' + this.bitDayOfWeek);
 	}
 
+	/** 該当日(のビット)を反転(xor)する
+	 * @param {Date|number} date_or_dayOfWeek DateかDate.getDay() [曜日]を指定
+	 */
+	toggleBit(date_or_dayOfWeek)
+	{
+		if(date_or_dayOfWeek instanceof Date) date_or_dayOfWeek = date_or_dayOfWeek.getDay();
+		this.bitDayOfWeek ^= (1 << date_or_dayOfWeek);
+		let store = getPropertiesStore();
+		store.setProperty(PKEY_SETTING, '' + this.bitDayOfWeek);
+	}
+
 	/** ビット列を設定する (日～土までを一括で指定する)
 	 * @param {number} bitValue 7ビット値、LSB→MSBで 日、月、火、水、木、金、土
 	 */
@@ -220,8 +231,9 @@ function setupEverydayTrigger(dayOfWeek)
 	checkOwnerAccess();
 
 	let bitDays = BitDayOfWeek.getInstance();
-	setTriggerEveryNight();
-	bitDays.setBit(dayOfWeek);
+	bitDays.toggleBit(dayOfWeek);
+	if(bitDays.bitValue() !== 0)	setTriggerEveryNight();
+	else							removeTrigger();
 	createMenu();
 	showResult(bitDays.bitValue(), dayOfWeek);
 }
@@ -246,10 +258,10 @@ function showResult(bitDayOfWeek, dayOfWeek = undefined)
 			}
 		}
 		dialog([
-			'Document audo-backup has been set for following days of week.',
+			'Document will be backuped at the folowing day(s) of week.',
 			'---> [' + nameDaysEN.join(', ') + ']',
 			'',
-			'ドキュメントの自動保存が以下の曜日で設定されました(されています)',
+			'以下の曜日で自動保存が実行されます。',
 			'---> [' + nameDaysJP.join(', ') + ']',
 		].join('\n'));
 	}
