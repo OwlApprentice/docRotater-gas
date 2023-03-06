@@ -545,8 +545,39 @@ function copyFile(fileSrc, folderDest, filename)
 		let bodyNew = docNew.getBody();
 		bodyNew.clear();
 
-		let bodySrc = DocumentApp.getActiveDocument().getBody();
+		let docSrc = DocumentApp.getActiveDocument();
+		let bodySrc = docSrc.getBody();
+		for(let i = 0; i < docSrc.getNumChildren(); i++) {
+			let e = docSrc.getChild(i).copy();
+			let type = e.getType();
+			switch(type) {
+				case DocumentApp.ElementType.HORIZONTAL_RULE:
+					bodyNew.appendHorizontalRule(e);
+					break;
+				case DocumentApp.ElementType.INLINE_IMAGE:
+					bodyNew.appendImage(e);
+					break;
+				case DocumentApp.ElementType.INLINE_DRAWING:
+					bodyNew.appendImage(e);
+					break;
+				case DocumentApp.ElementType.LIST_ITEM:
+					bodyNew.appendListItem(e);
+					break;
+				case DocumentApp.ElementType.PAGE_BREAK:
+					bodyNew.appendPageBreak(e);
+					break;
+				case DocumentApp.ElementType.PARAGRAPH:
+					bodyNew.appendParagraph(e);
+					break;
+				case DocumentApp.ElementType.TABLE:
+					bodyNew.appendTable(e);
+					break;
+				default:
+			}
+		}
+
 		let tParahraphSrc = bodySrc.getParagraphs();
+
 		for(let p of tParahraphSrc) {
 			bodyNew.appendParagraph(p.copy());
 		}
