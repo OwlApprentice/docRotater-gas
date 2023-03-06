@@ -9,8 +9,9 @@
 	- Date format is yyyy/mm/dd (JPN locale).
 
 ### Limitations:
-- can handle only 'Document' type file.
 - Not acceptable Spreadsheet, Slide etc.
+- Can handle only 'Document' type file.
+	- Backup files become PDFs, in order prevent this script from being copied.
 
 ### How to install:
 - just paste content of 'source.dev/code.js' into your Google Apps Script editor.
@@ -36,8 +37,9 @@
 	- 例) ファイル.2023.01.01 → ファイル.2023.01.07  ※日付はバックアップ実行日時
 
 ### 制限事項:
-- 今のところ文書ファイルのみ対応
 - スプレッドシートやスライドには使用不可
+- 今のところ文書ファイルのみ対応
+	- バックアップされたファイルはPDF形式になります (Googleドキュメント形式だとこのスクリプトまでコピーされてしまうので...)
 
 ### インストール方法:
 - レポジトリ source.dev/code.js の中身を Google Apps Script のエディタに貼り付ける
