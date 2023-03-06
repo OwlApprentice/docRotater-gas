@@ -222,7 +222,7 @@ function onMenu_CopyNow()
 {
 	checkOwnerAccess();
 	rotateDocument(new Date(), true);
-	dialog(['Copy/backup has done.', '本日の日付で複製実行しました。'].join('\n'));
+	dialog(['Copy/backup has just done.', '本日の日付で複製実行しました。'].join('\n'));
 }
 
 /** ハンドラ -- メニュー選択時 > 設定削除
@@ -536,55 +536,9 @@ function createFolder(folder, name)
  */
 function copyFile(fileSrc, folderDest, filename)
 {
-	let docNew = DocumentApp.create(filename);
-	let idNew = docNew.getId();
-	let fileNew = DriveApp.getFileById(idNew);
-	if(docNew != null && fileNew != null) {
-		fileNew.moveTo(folderDest);
-		fileNew.setName(filename);
-		let bodyNew = docNew.getBody();
-		bodyNew.clear();
-
-		let docSrc = DocumentApp.getActiveDocument();
-		let bodySrc = docSrc.getBody();
-		for(let i = 0; i < docSrc.getNumChildren(); i++) {
-			let e = docSrc.getChild(i).copy();
-			let type = e.getType();
-			switch(type) {
-				case DocumentApp.ElementType.HORIZONTAL_RULE:
-					bodyNew.appendHorizontalRule(e);
-					break;
-				case DocumentApp.ElementType.INLINE_IMAGE:
-					bodyNew.appendImage(e);
-					break;
-				case DocumentApp.ElementType.INLINE_DRAWING:
-					bodyNew.appendImage(e);
-					break;
-				case DocumentApp.ElementType.LIST_ITEM:
-					bodyNew.appendListItem(e);
-					break;
-				case DocumentApp.ElementType.PAGE_BREAK:
-					bodyNew.appendPageBreak(e);
-					break;
-				case DocumentApp.ElementType.PARAGRAPH:
-					bodyNew.appendParagraph(e);
-					break;
-				case DocumentApp.ElementType.TABLE:
-					bodyNew.appendTable(e);
-					break;
-				default:
-			}
-		}
-
-		let tParahraphSrc = bodySrc.getParagraphs();
-
-		for(let p of tParahraphSrc) {
-			bodyNew.appendParagraph(p.copy());
-		}
-		docNew.saveAndClose();
-		docNew = undefined;
-		fileNew = DriveApp.getFileById(idNew);
-	}
+	let blob = getActiveFile().getBlob(); // get as PDF
+	let fileNew = folderDest.createFile(blob);
+	if (fileNew) fileNew.setName(filename);
 
 	if(fileNew == undefined) {
 		throw new Error('Could not copy a file to ' + filename);
