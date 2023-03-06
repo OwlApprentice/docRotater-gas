@@ -536,10 +536,25 @@ function createFolder(folder, name)
  */
 function copyFile(fileSrc, folderDest, filename)
 {
-	let blob = getActiveFile().getBlob();
+	let blob = DocumentApp.getActiveDocument().getBlob();
 	let type = blob.getContentType();
 	let fileNew = folderDest.createFile(blob);
 	if (fileNew) fileNew.setName(filename);
+
+
+
+	//let docNew = DocumentApp.create(filename);
+	//let fileNew = DriveApp.getFileById(docNew.getId());
+	//if(docNew != null) {
+	//	fileNew.setName(filename);
+	//	let bodyNew = doc.
+
+	//	let body = getActiveDocument().getBody();
+	//	let tParahraph = body.getParagraphs();
+	//	for(let p of tParahraph) {
+
+	//	}
+	//}
 
 	if(fileNew == undefined) {
 		throw new Error('Could not copy a file to ' + filename);
