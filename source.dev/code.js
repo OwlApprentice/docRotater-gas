@@ -174,7 +174,10 @@ function createMenu()
 		{func: onMenu_Friday, label: 'Firday(金)', },
 		{func: onMenu_Sataurday, label: 'Sataurday(土)', },
 		null,
-		{func: onMenu_DeleteAll, label: 'Delete all (設定削除)', },
+		{func: onMenu_DeleteAll, label: 'Delete all settings (設定削除)', },
+		null,
+		{func: onMenu_CopyNow, label: 'Copy Now (今すぐ複製)', },
+		null,
 		{func: onMenu_Help, label: 'Help (使い方)', },
 	];
 
@@ -212,6 +215,15 @@ function onMenu_Wednesday() {setupEverydayTrigger(3);}
 function onMenu_Thurseday() {setupEverydayTrigger(4);}
 function onMenu_Friday() {setupEverydayTrigger(5);}
 function onMenu_Sataurday() {setupEverydayTrigger(6);}
+
+/** ハンドラ -- メニュー選択時 > 今すぐ複製
+ */
+function onMenu_CopyNow()
+{
+	checkOwnerAccess();
+	rotateDocument(new Date(), true);
+	dialog(['Copy/backup has done.', '本日の日付で複製実行しました。'].join('\n'));
+}
 
 /** ハンドラ -- メニュー選択時 > 設定削除
  */
@@ -465,12 +477,14 @@ function markUpdateAlready(dateNow)
 /** ドキュメントのバックアップ処理
  * @param {Date} 実行日時
  */
-function rotateDocument(dateNow)
+function rotateDocument(dateNow, fForceCopy = false)
 {
 	let today = new Date(dateNow.getFullYear(), dateNow.getMonth(), dateNow.getDate());
-	let bitDays = BitDayOfWeek.getInstance();
-	if(false == bitDays.test(today.getDay())) return;
-	if(hasUpdateAlready(today)) return;
+	if(!fForceCopy) {
+		let bitDays = BitDayOfWeek.getInstance();
+		if(false == bitDays.test(today.getDay())) return;
+		if(hasUpdateAlready(today)) return;
+	}
 
 	let file = getActiveFile();
 	let filename = file.getName();
@@ -487,7 +501,7 @@ function rotateDocument(dateNow)
 		renameFile(file, filenameNew);
 	}
 
-	markUpdateAlready(dateNow);
+	if (!fForceCopy) markUpdateAlready(dateNow);
 	return;
 }
 
@@ -522,16 +536,11 @@ function createFolder(folder, name)
  */
 function copyFile(fileSrc, folderDest, filename)
 {
-	let founds = folderDest.getFilesByName(filename);
-	if(founds.hasNext()) return founds.next();
+	let blob = getActiveFile().getBlob();
+	let type = blob.getContentType();
+	let fileNew = folderDest.createFile(blob);
+	if (fileNew) fileNew.setName(filename);
 
-	let fileNew = undefined;
-	for(let i = MAX_ERROR_RETRY; i >= 0; i--) {
-		try {fileNew = fileSrc.makeCopy(filename, folderDest);}
-		catch(e) {console.log(e);}
-		if(fileNew !== undefined) break;
-		Utilities.sleep(1000 * (i + 1));
-	}
 	if(fileNew == undefined) {
 		throw new Error('Could not copy a file to ' + filename);
 	}
